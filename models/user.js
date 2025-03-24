@@ -37,5 +37,16 @@ userSchema.pre("save", function (next)
     this.password = hashedpassword;
     next();
 });
+userSchema.static("matchPassword", async function (email, password){
+    const user = await this.findOne({email});
+    if(!user)
+    throw new Error('User not found!');
+    const salt = user.salt;
+    const hashedpassword = user.password;
+    const userHash = createHmac("sha256", salt).update(password).digest("hex");
+    if(hashedpassword !== userHash)
+    throw new Error('Incorrect Password');
+    return user;
+});
 const User = model("user", userSchema);
 module.exports = User;
