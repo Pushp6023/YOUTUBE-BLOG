@@ -68,8 +68,23 @@ router.post("/comment/:blogId", async (req, res) => {
 router.post("/", upload.single("coverImage"), async (req, res) => {
     try {
         const { title, body } = req.body;
+        const BLOB_READ_WRITE_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
+
+        if (!BLOB_READ_WRITE_TOKEN) {
+            throw new Error("Missing BLOB_READ_WRITE_TOKEN. Set it in Vercel Environment Variables.");
+        }
+
+        if (!req.file) {
+            return res.status(400).json({ error: "No file uploaded" });
+        }
         const fileBuffer = fs.readFileSync(req.file.path);
-        const { url } = await put(`uploads/${req.file.filename}`, fileBuffer, { access: "public" });
+        const { url } = await put(`uploads/${req.file.filename}`, fileBuffer, {
+            access: "public",
+            token: BLOB_READ_WRITE_TOKEN,
+        });
+
+        fs.unlinkSync(req.file.path);
+
         const blog = await Blog.create({
             title,
             body,
@@ -80,7 +95,8 @@ router.post("/", upload.single("coverImage"), async (req, res) => {
         return res.redirect(`/blog/${blog._id}`);
     } catch (error) {
         console.error("Error uploading file:", error);
-        return res.status(500).json({ error: "Internal Server Error" });
+        return res.status(500).json({ error: "Internal Server Error", details: error.message });
     }
 });
+
 module.exports = router;
