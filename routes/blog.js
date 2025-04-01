@@ -2,12 +2,14 @@ const {Router} = require("express");
 const router = Router();
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
+const { put } = require("@vercel/blob");
 const User = require("../models/user");
 const Blog = require("../models/blog");
 const Comment = require("../models/comment");
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, path.resolve(`./public/uploads/`));
+        cb(null, "/tmp");
     },
     filename: function (req, file, cb) {
        const fileName = `${Date.now()}-${file.originalname}` 
@@ -64,13 +66,21 @@ router.post("/comment/:blogId", async (req, res) => {
     return res.redirect(`/blog/${req.params.blogId}`);
 });
 router.post("/", upload.single("coverImage"), async (req, res) => {
-    const {title, body} = req.body;
-    const blog = await Blog.create({
-        title,
-        body,
-        createdBy: req.user._id,
-        coverImageURL: `/uploads/${req.file.filename}`,
-    });
-    return res.redirect(`/blog/${blog._id}`);
+    try {
+        const { title, body } = req.body;
+        const fileBuffer = fs.readFileSync(req.file.path);
+        const { url } = await put(`uploads/${req.file.filename}`, fileBuffer, { access: "public" });
+        const blog = await Blog.create({
+            title,
+            body,
+            createdBy: req.user._id,
+            coverImageURL: url,
+        });
+
+        return res.redirect(`/blog/${blog._id}`);
+    } catch (error) {
+        console.error("Error uploading file:", error);
+        return res.status(500).json({ error: "Internal Server Error" });
+    }
 });
 module.exports = router;
